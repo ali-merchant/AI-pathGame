@@ -38,6 +38,7 @@ class PathfinderGUI:
         self.delay = 500
 
         self.depth_lim = 0
+        self.max_depth = 20
         
         self.setup_ui()
         
@@ -49,7 +50,7 @@ class PathfinderGUI:
         
         self.algo_var = tk.StringVar(value="BFS")
         dropdown = ttk.Combobox(top, textvariable=self.algo_var, 
-                                values=["BFS", "DFS", "UCS"], 
+                                values=["BFS", "DFS", "UCS","DLS"], 
                                 state='readonly', width=15)
         dropdown.pack(side=tk.LEFT, padx=5)
         
@@ -175,6 +176,8 @@ class PathfinderGUI:
         self.draw()
         self.status.config(text="Ready", fg='blue')
         self.start_btn.config(state='normal')
+        self.depth_lim = 0
+        
     
     def init_search(self):
         self.algo = self.algo_var.get()
@@ -212,7 +215,17 @@ class PathfinderGUI:
             self.status.config(text="UCS started...", fg='green')
             self.start_btn.config(state='disabled')
             self.root.after(self.delay, self.next_step)
-    
+        elif self.algo == "DLS":
+            self.depth_lim = 20
+            self.stk = []
+            self.stk.append((self.start, [self.start], 0))
+            self.visited = set()
+            self.searching = True
+            self.status.config(text="DLS started (limit=" + str(self.depth_lim) + ")...", fg='green')
+            self.start_btn.config(state='disabled')
+            self.root.after(self.delay, self.next_step)
+
+
     def next_step(self):
         if not self.searching:
             return
@@ -223,6 +236,8 @@ class PathfinderGUI:
             self.do_dfs()
         elif self.algo == "UCS":
             self.do_ucs()
+        elif self.algo == "DLS":
+            self.do_dls()
     
     def do_bfs(self):
         if len(self.q) == 0:
@@ -357,6 +372,49 @@ class PathfinderGUI:
         
         self.status.config(text="Step " + str(self.steps) + " | Cost: " + 
                           str(round(cost, 2)) + " | Frontier: " + str(len(self.q)), fg='blue')
+        
+        if self.searching:
+            self.root.after(self.delay, self.next_step)
+
+    def do_dls(self):
+        if len(self.stk) == 0:
+            self.status.config(text="No path in depth limit!", fg='red')
+            self.start_btn.config(state='normal')
+            self.searching = False
+            return
+        
+        n, p, d = self.stk.pop()
+        self.steps += 1
+        
+        self.frontier = []
+        for node, path, depth in self.stk:
+            self.frontier.append(node)
+        
+        self.draw()
+        
+        if n == self.target:
+            self.path = p
+            self.frontier = []
+            self.draw()
+            self.status.config(text="Found! Depth: " + str(d) + 
+                              " Steps: " + str(self.steps), fg='darkgreen')
+            self.start_btn.config(state='normal')
+            self.searching = False
+            return
+        
+        if n != self.start:
+            self.explored.append(n)
+        
+        if d < self.depth_lim:
+            nbrs = self.get_nbrs(n)
+            for nbr in nbrs:
+                if nbr not in self.visited:
+                    self.visited.add(nbr)
+                    new_p = p + [nbr]
+                    self.stk.append((nbr, new_p, d + 1))
+        
+        self.status.config(text="Step " + str(self.steps) + " | Depth: " + 
+                          str(d) + " | Limit: " + str(self.depth_lim), fg='blue')
         
         if self.searching:
             self.root.after(self.delay, self.next_step)
