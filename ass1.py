@@ -39,6 +39,15 @@ class PathfinderGUI:
 
         self.depth_lim = 0
         self.max_depth = 20
+
+                
+        
+        self.fwd_q = None
+        self.bwd_q = None
+        self.fwd_visited = None
+        self.bwd_visited = None
+        self.fwd_parent = None
+        self.bwd_parent = None
         
         self.setup_ui()
         
@@ -50,7 +59,7 @@ class PathfinderGUI:
         
         self.algo_var = tk.StringVar(value="BFS")
         dropdown = ttk.Combobox(top, textvariable=self.algo_var, 
-                                values=["BFS", "DFS", "UCS","DLS","IDDFS"], 
+                                values=["BFS", "DFS", "UCS","DLS","IDDFS","Bidirectional"], 
                                 state='readonly', width=15)
         dropdown.pack(side=tk.LEFT, padx=5)
         
@@ -177,6 +186,13 @@ class PathfinderGUI:
         self.status.config(text="Ready", fg='blue')
         self.start_btn.config(state='normal')
         self.depth_lim = 0
+
+        self.fwd_q = None
+        self.bwd_q = None
+        self.fwd_visited = None
+        self.bwd_visited = None
+        self.fwd_parent = None
+        self.bwd_parent = None
         
     
     def init_search(self):
@@ -226,12 +242,26 @@ class PathfinderGUI:
             self.root.after(self.delay, self.next_step)
 
         elif self.algo == "IDDFS":
+            
             self.depth_lim = 0
             self.stk = []
             self.stk.append((self.start, [self.start], 0))
             self.visited = set()
             self.searching = True
             self.status.config(text="IDDFS started (depth=" + str(self.depth_lim) + ")...", fg='green')
+            self.start_btn.config(state='disabled')
+            self.root.after(self.delay, self.next_step)
+        elif self.algo == "Bidirectional":
+            self.fwd_q = deque()
+            self.bwd_q = deque()
+            self.fwd_q.append(self.start)
+            self.bwd_q.append(self.target)
+            self.fwd_visited = {self.start: None}
+            self.bwd_visited = {self.target: None}
+            self.fwd_parent = {self.start: None}
+            self.bwd_parent = {self.target: None}
+            self.searching = True
+            self.status.config(text="Bidirectional started...", fg='green')
             self.start_btn.config(state='disabled')
             self.root.after(self.delay, self.next_step)
 
@@ -249,6 +279,8 @@ class PathfinderGUI:
             self.do_dls()
         elif self.algo == "IDDFS":
             self.do_iddfs()
+        elif self.algo == "Bidirectional":
+            self.do_bidirectional()
     def do_bfs(self):
         if len(self.q) == 0:
             self.status.config(text="No path!", fg='red')
@@ -488,6 +520,99 @@ class PathfinderGUI:
         if self.searching:
             self.root.after(self.delay, self.next_step)
 
+    def do_bidirectional(self):
+        if len(self.fwd_q) == 0 and len(self.bwd_q) == 0:
+            self.status.config(text="No path!", fg='red')
+            self.start_btn.config(state='normal')
+            self.searching = False
+            return
+        
+        self.steps += 1
+        
+        #alternate fwd/bwd
+        if self.steps % 2 == 1 and len(self.fwd_q) > 0:
+            curr = self.fwd_q.popleft()
+            
+            if curr != self.start:
+                if curr not in self.explored:
+                    self.explored.append(curr)
+            
+            if curr in self.bwd_visited:
+                #found intersection
+                p = self.build_path(curr)
+                self.path = p
+                self.frontier = []
+                self.draw()
+                self.status.config(text="Found! Length: " + str(len(p)) + 
+                                  " Steps: " + str(self.steps), fg='darkgreen')
+                self.start_btn.config(state='normal')
+                self.searching = False
+                return
+            
+            nbrs = self.get_nbrs(curr)
+            for nbr in nbrs:
+                if nbr not in self.fwd_visited:
+                    self.fwd_visited[nbr] = curr
+                    self.fwd_parent[nbr] = curr
+                    self.fwd_q.append(nbr)
+        
+        elif len(self.bwd_q) > 0:
+            curr = self.bwd_q.popleft()
+            
+            if curr != self.target:
+                if curr not in self.explored:
+                    self.explored.append(curr)
+            
+            if curr in self.fwd_visited:
+                p = self.build_path(curr)
+                self.path = p
+                self.frontier = []
+                self.draw()
+                self.status.config(text="Found! Length: " + str(len(p)) + 
+                                  " Steps: " + str(self.steps), fg='darkgreen')
+                self.start_btn.config(state='normal')
+                self.searching = False
+                return
+            
+            nbrs = self.get_nbrs(curr)
+            for nbr in nbrs:
+                if nbr not in self.bwd_visited:
+                    self.bwd_visited[nbr] = curr
+                    self.bwd_parent[nbr] = curr
+                    self.bwd_q.append(nbr)
+        
+        self.frontier = []
+        for node in self.fwd_q:
+            self.frontier.append(node)
+        for node in self.bwd_q:
+            self.frontier.append(node)
+        
+        self.draw()
+        
+        self.status.config(text="Step " + str(self.steps) + " | Fwd: " + 
+                          str(len(self.fwd_q)) + " | Bwd: " + 
+                          str(len(self.bwd_q)), fg='blue')
+        
+        if self.searching:
+            self.root.after(self.delay, self.next_step)
+    
+    def build_path(self, meeting):
+        #fwd path
+        fwd = []
+        curr = meeting
+        while curr is not None:
+            fwd.append(curr)
+            curr = self.fwd_parent[curr]
+        fwd.reverse()
+        
+        #bwd path
+        bwd = []
+        curr = self.bwd_parent[meeting]
+        while curr is not None:
+            bwd.append(curr)
+            curr = self.bwd_parent[curr]
+        
+        return fwd + bwd
 
 if __name__ == "__main__":
     root = tk.Tk()
