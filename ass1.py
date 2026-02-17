@@ -141,13 +141,27 @@ class PathfinderGUI:
         
         return nbrs
     
-    def calc_cost(self, p1, p2):
-        r1, c1 = p1
-        r2, c2 = p2
-        if abs(r1 - r2) == 1 and abs(c1 - c2) == 1:
-            return 1.414 #diagonal
-        else:
-            return 1.0
+def calc_cost(self, p1, p2):
+    r1, c1 = p1
+    r2, c2 = p2
+    
+    dr = r2 - r1
+    dc = c2 - c1
+    
+    if dr == -1 and dc == 0:  # U
+        return 1.0
+    elif dr == 0 and dc == 1:  # R
+        return 2.0
+    elif dr == 1 and dc == 0:  # D
+        return 3.0
+    elif dr == 1 and dc == 1:  # DR
+        return 4.0
+    elif dr == 0 and dc == -1:  # L
+        return 5.0
+    elif dr == -1 and dc == -1:  # UL
+        return 6.0
+    else:
+        return 1.0
 
     def reset_grid(self):
         self.frontier = []
