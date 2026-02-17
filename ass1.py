@@ -36,6 +36,8 @@ class PathfinderGUI:
         self.algo = ""
         self.steps = 0
         self.delay = 500
+
+        self.depth_lim = 0
         
         self.setup_ui()
         
@@ -47,7 +49,7 @@ class PathfinderGUI:
         
         self.algo_var = tk.StringVar(value="BFS")
         dropdown = ttk.Combobox(top, textvariable=self.algo_var, 
-                                values=["BFS", "DFS"], 
+                                values=["BFS", "DFS", "UCS"], 
                                 state='readonly', width=15)
         dropdown.pack(side=tk.LEFT, padx=5)
         
@@ -139,6 +141,14 @@ class PathfinderGUI:
         
         return nbrs
     
+    def calc_cost(self, p1, p2):
+        r1, c1 = p1
+        r2, c2 = p2
+        if abs(r1 - r2) == 1 and abs(c1 - c2) == 1:
+            return 1.414 #diagonal
+        else:
+            return 1.0
+
     def reset_grid(self):
         self.frontier = []
         self.explored = []
@@ -180,6 +190,14 @@ class PathfinderGUI:
             self.status.config(text="DFS started...", fg='green')
             self.start_btn.config(state='disabled')
             self.root.after(self.delay, self.next_step)
+        elif self.algo == "UCS":
+            self.q = [(0, self.start, [self.start])]
+            self.visited = {}
+            self.visited[self.start] = 0
+            self.searching = True
+            self.status.config(text="UCS started...", fg='green')
+            self.start_btn.config(state='disabled')
+            self.root.after(self.delay, self.next_step)
     
     def next_step(self):
         if not self.searching:
@@ -189,6 +207,8 @@ class PathfinderGUI:
             self.do_bfs()
         elif self.algo == "DFS":
             self.do_dfs()
+        elif self.algo == "UCS":
+            self.do_ucs()
     
     def do_bfs(self):
         if len(self.q) == 0:
@@ -274,6 +294,58 @@ class PathfinderGUI:
         if self.searching:
             self.root.after(self.delay, self.next_step)
 
+    def do_ucs(self):
+        if len(self.q) == 0:
+            self.status.config(text="No path!", fg='red')
+            self.start_btn.config(state='normal')
+            self.searching = False
+            return
+        
+        #find min cost
+        min_i = 0
+        min_c = self.q[0][0]
+        for i in range(len(self.q)):
+            if self.q[i][0] < min_c:
+                min_c = self.q[i][0]
+                min_i = i
+        
+        cost, n, p = self.q.pop(min_i)
+        self.steps += 1
+        
+        self.frontier = []
+        for c, node, path in self.q:
+            self.frontier.append(node)
+        
+        self.draw()
+        
+        if n == self.target:
+            self.path = p
+            self.frontier = []
+            self.draw()
+            self.status.config(text="Found! Cost: " + str(round(cost, 2)) + 
+                              " Steps: " + str(self.steps), fg='darkgreen')
+            self.start_btn.config(state='normal')
+            self.searching = False
+            return
+        
+        if n != self.start:
+            self.explored.append(n)
+        
+        nbrs = self.get_nbrs(n)
+        for nbr in nbrs:
+            edge_c = self.calc_cost(n, nbr)
+            new_c = cost + edge_c
+            
+            if nbr not in self.visited or new_c < self.visited[nbr]:
+                self.visited[nbr] = new_c
+                new_p = p + [nbr]
+                self.q.append((new_c, nbr, new_p))
+        
+        self.status.config(text="Step " + str(self.steps) + " | Cost: " + 
+                          str(round(cost, 2)) + " | Frontier: " + str(len(self.q)), fg='blue')
+        
+        if self.searching:
+            self.root.after(self.delay, self.next_step)
 
 if __name__ == "__main__":
     root = tk.Tk()
